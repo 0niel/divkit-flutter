@@ -189,19 +189,18 @@ class DartProperty(Property):
             return f"{prop_type_decl}.fromJson(json['{self.name}']){required_cast}"
         elif property_type.is_list():
             inner_item_type = property_type.get_list_inner_class()
-            if inner_item_type.is_class():
-                if inner_item_type.is_string_enumeration():
-                    return f"(json['{self.name}'] as List<dynamic>{'?' if self.optional or self.has_default else ''})" \
+            if not inner_item_type.is_class():
+                return f"(json['{self.name}'] as List<dynamic>{'?' if self.optional or self.has_default else ''})" \
+                           f"{'?' if self.optional or self.has_default else ''}.map((v) => (v as {prop_type_decl[5:-1]}))" \
+                           ".toList()"
+            if inner_item_type.is_string_enumeration():
+                return f"(json['{self.name}'] as List<dynamic>{'?' if self.optional or self.has_default else ''})" \
                            f"{'?' if self.optional or self.has_default else ''}.map((s) => {prop_type_decl[5:-1]}" \
                            ".fromJson(s)!).toList()"
-                else:
-                    return f"(json['{self.name}'] as List<dynamic>{'?' if self.optional or self.has_default else ''})" \
-                           f"{'?' if self.optional or self.has_default else ''}.map((j) => {prop_type_decl[5:-1]}." \
-                           "fromJson(j as Map <String, dynamic>)!).toList()"
             else:
                 return f"(json['{self.name}'] as List<dynamic>{'?' if self.optional or self.has_default else ''})" \
-                       f"{'?' if self.optional or self.has_default else ''}.map((v) => (v as {prop_type_decl[5:-1]}))" \
-                       ".toList()"
+                           f"{'?' if self.optional or self.has_default else ''}.map((j) => {prop_type_decl[5:-1]}." \
+                           "fromJson(j as Map <String, dynamic>)!).toList()"
 
     def add_default_value_to(self, declaration: str, in_constructor=True) -> str:
         prop_type = cast(DartPropertyType, self.property_type)
@@ -240,9 +239,7 @@ class DartPropertyType(PropertyType):
     def referenced_top_level_type_name(self) -> Optional[str]:
         if isinstance(self, Object):
             obj = self.object
-            if obj is not None and obj.parent is None:
-                return get_full_name(obj)
-            return None
+            return get_full_name(obj) if obj is not None and obj.parent is None else None
         elif isinstance(self, DartArray):
             return self.property_type_dart.referenced_top_level_type_name
         return None
@@ -363,9 +360,8 @@ class DartPropertyType(PropertyType):
                         continue
                     declaration = cast(DartPropertyType, prop.property_type).internal_declaration(str_type)
                     args.append(f'{prop.declaration_name}: {declaration}')
-                if len(args) != 0:
-                    prop_init = ', '.join(args)
-                    prop_init += ','
+                if args:
+                    prop_init = ', '.join(args) + ','
                     pref = 'const '
 
                 return f'{pref}{get_full_name(entity)}({prop_init})'

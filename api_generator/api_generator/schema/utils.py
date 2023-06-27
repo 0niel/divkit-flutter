@@ -7,7 +7,7 @@ Value = TypeVar('V')
 
 
 def enclosed_dict_for(keys: List[Key], dictionary: Dict[Key, any]) -> Dict[Key, any]:
-    if len(keys) == 0:
+    if not keys:
         return dictionary
     d = dictionary.copy()
     for key in keys:
@@ -16,9 +16,7 @@ def enclosed_dict_for(keys: List[Key], dictionary: Dict[Key, any]) -> Dict[Key, 
 
 
 def get_value_with_optional_by_lang(key: str, lang: GeneratedLanguage, dictionary: Dict[str, any]) -> Optional[Value]:
-    if key in dictionary:
-        return dictionary[key]
-    return dictionary.get(f'{key}_{lang.value}')
+    return dictionary.get(key, dictionary.get(f'{key}_{lang.value}'))
 
 
 def get_value_by_specific_lang(key: str, lang: GeneratedLanguage, dictionary: Dict[str, any]) -> Optional[Value]:

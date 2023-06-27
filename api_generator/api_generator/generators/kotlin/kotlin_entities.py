@@ -40,14 +40,14 @@ def _number_validator_decl(type: str, constraint: Optional[str]) -> Optional[str
 
 
 def _kotlin_default_value_declaration_comment(p: Property) -> str:
-    if isinstance(p.property_type, Object) and not isinstance(p.property_type.object, StringEnumeration):
-        property_type = cast(KotlinPropertyType, Object(name='',
-                                                        object=p.property_type.object,
-                                                        format=ObjectFormat.DEFAULT))
-        comment_value = property_type.declaration_by_default_value(p.default_value, True)
-    else:
-        comment_value = p.default_value
-    return comment_value
+    if not isinstance(p.property_type, Object) or isinstance(
+        p.property_type.object, StringEnumeration
+    ):
+        return p.default_value
+    property_type = cast(KotlinPropertyType, Object(name='',
+                                                    object=p.property_type.object,
+                                                    format=ObjectFormat.DEFAULT))
+    return property_type.declaration_by_default_value(p.default_value, True)
 
 
 class KotlinEntity(Entity):
@@ -92,9 +92,10 @@ class KotlinEntity(Entity):
             extra_properties = []
         if not self.instance_properties and not extra_properties:
             return Text()
-        expressions = []
-        for prop in self.instance_properties_kotlin:
-            expressions.append(prop.deserialization_declaration(mode=self.generation_mode))
+        expressions = [
+            prop.deserialization_declaration(mode=self.generation_mode)
+            for prop in self.instance_properties_kotlin
+        ]
         expressions.extend(extra_properties)
         result = Text()
         for ind, expr in enumerate(expressions):
@@ -204,11 +205,12 @@ class KotlinEntity(Entity):
                 validators += validator_or_empty
 
             if isinstance(p.property_type, Array):
-                validator_or_empty = cast(KotlinPropertyType, p.property_type.property_type)\
-                    .static_validator_expression(
-                    property_name=p.name + '_item',
+                validator_or_empty = cast(
+                    KotlinPropertyType, p.property_type.property_type
+                ).static_validator_expression(
+                    property_name=f'{p.name}_item',
                     supports_expressions=p.supports_expressions,
-                    with_template_validators=is_template
+                    with_template_validators=is_template,
                 )
                 if str(validator_or_empty):
                     validators += validator_or_empty
@@ -273,12 +275,12 @@ class KotlinEntity(Entity):
 
     @property
     def __contains_array_of_objects(self) -> bool:
-        for p in self.properties:
-            if not p.optional and \
-                    isinstance(p.property_type, Array) and \
-                    isinstance(p.property_type.property_type, Object):
-                return True
-        return False
+        return any(
+            not p.optional
+            and isinstance(p.property_type, Array)
+            and isinstance(p.property_type.property_type, Object)
+            for p in self.properties
+        )
 
 
 class KotlinProperty(Property):
@@ -332,9 +334,7 @@ class KotlinProperty(Property):
         if not self.supports_expressions:
             return False
         prop = cast(KotlinPropertyType, self.property_type)
-        if prop.is_array_of_expressions:
-            return False
-        return prop.supports_expressions
+        return False if prop.is_array_of_expressions else prop.supports_expressions
 
     @property
     def type_declaration(self) -> str:
@@ -345,13 +345,12 @@ class KotlinProperty(Property):
             else:
                 prefix = 'Field<'
                 suffix = '>'
+        elif self.use_expression_type:
+            prefix = f'{EXPRESSION_TYPE_NAME}<'
+            suffix = '>'
         else:
-            if self.use_expression_type:
-                prefix = f'{EXPRESSION_TYPE_NAME}<'
-                suffix = '>'
-            else:
-                prefix = ''
-                suffix = ''
+            prefix = ''
+            suffix = ''
         type_decl = cast(KotlinPropertyType, self.property_type).declaration(
             self.mode,
             self.supports_expressions
@@ -401,10 +400,7 @@ class KotlinProperty(Property):
                 expression_suffix_or_empty = ''
             list_or_empty = ''
         optionality = 'Optional' if self.parsed_value_is_optional else ''
-        if reuse_logger_instance:
-            logger_arg = 'logger'
-        else:
-            logger_arg = 'env.logger'
+        logger_arg = 'logger' if reuse_logger_instance else 'env.logger'
         if mode.is_template:
             method_name = f'read{optionality}{list_or_empty}Field{expression_suffix_or_empty}'
             key_value = f'"{self.dict_field}"'
@@ -424,10 +420,12 @@ class KotlinProperty(Property):
         )]
 
         if isinstance(kotlin_type, Array):
-            arg_list.append(cast(KotlinPropertyType, kotlin_type.property_type).validator_arg(
-                property_name=self.name + '_item',
-                with_template_validators=mode.is_template
-            ))
+            arg_list.append(
+                cast(KotlinPropertyType, kotlin_type.property_type).validator_arg(
+                    property_name=f'{self.name}_item',
+                    with_template_validators=mode.is_template,
+                )
+            )
 
         arg_list.extend([logger_arg, 'env'])
 
@@ -474,12 +472,12 @@ class KotlinProperty(Property):
         else:
             value_override = f', valueOverride = {value_override}'
         reader = self.reader_declaration_name
+        expression_or_empty = ''
         if isinstance(self.property_type, Array):
             kotlin_prop = cast(KotlinPropertyType, self.property_type)
             if self.supports_expressions and kotlin_prop.is_array_of_expressions:
                 list_or_empty = 'ExpressionList'
                 validator = ''
-                expression_or_empty = ''
             else:
                 list_or_empty = 'List'
                 validator = cast(KotlinPropertyType, self.property_type).validator_arg(
@@ -487,13 +485,11 @@ class KotlinProperty(Property):
                     with_template_validators=False
                 )
                 validator = f', {validator}'
-                expression_or_empty = ''
                 if self.supports_expressions and not kotlin_prop.is_enum_of_expressions:
                     expression_or_empty = EXPRESSION_TYPE_NAME
         else:
             list_or_empty = ''
             validator = ''
-            expression_or_empty = ''
         method_name = f'.resolve{optionality}{plain_or_empty}{expression_or_empty}{list_or_empty}'
         method_args = f'env = env, key = "{dict_field}", data = data{validator}{value_override}, reader = {reader}'
         def_val = self.default_value_coalescing(mode=GenerationMode.NORMAL_WITHOUT_TEMPLATES)
@@ -529,9 +525,7 @@ class KotlinProperty(Property):
     @property
     def static_reader_deserialization_expression(self) -> str:
         def_val = self.default_value_coalescing(mode=GenerationMode.NORMAL_WITHOUT_TEMPLATES)
-        optional = ''
-        if self.parsed_value_is_optional and def_val == '':
-            optional = '?'
+        optional = '?' if self.parsed_value_is_optional and def_val == '' else ''
         deserialize_expression = self.deserialization_expression(mode=GenerationMode.NORMAL_WITH_TEMPLATES,
                                                                  reuse_logger_instance=False)
         lambda_val = f'key, json, env -> {deserialize_expression}{def_val}'
@@ -573,9 +567,9 @@ class KotlinPropertyType(PropertyType):
         if isinstance(self, (Bool, BoolInt)):
             return wrap(default_value)
         elif isinstance(self, Int):
-            return wrap(str(default_value) if 'L' in str(default_value) else f'{default_value}L')
+            return wrap(default_value if 'L' in default_value else f'{default_value}L')
         elif isinstance(self, Double):
-            return wrap(str(default_value) if '.' in str(default_value) else f'{default_value}.0')
+            return wrap(default_value if '.' in default_value else f'{default_value}.0')
         elif isinstance(self, Color):
             return wrap(f'{default_value.replace("#", "0x")}.toInt()')
         elif isinstance(self, String):
@@ -795,16 +789,14 @@ class KotlinPropertyType(PropertyType):
             return f'{{ it: List<*> -> it.size >= {self.min_items} }}'
         elif isinstance(self, String) and (self.min_length > 0 or self.regex is not None):
             expressions = []
-            length_field = 'rawLength' if self.formatted else 'length'
             if self.min_length > 0:
+                length_field = 'rawLength' if self.formatted else 'length'
                 expressions.append(f'it.{length_field} >= {self.min_length}')
             regex = self.regex
             if regex is not None:
                 escaped_pattern = regex.pattern.replace('\\', '\\\\')
                 expressions.append(f'it: String -> it.doesMatch("{escaped_pattern}")')
-            if not expressions:
-                return ''
-            return f'{{ it: String -> {" && ".join(expressions)} }}'
+            return f'{{ it: String -> {" && ".join(expressions)} }}' if expressions else ''
         elif isinstance(self, Url) and self.schemes is not None:
             scheme_list = ', '.join(map(lambda s: f'"{s}"', self.schemes))
             return f'{{ it.hasScheme(listOf({scheme_list})) }}'
@@ -869,12 +861,12 @@ class KotlinPropertyType(PropertyType):
 class CaseNaming:
     def format_case_name(self, name: str) -> str:
         if isinstance(self, Suffix):
-            return name + 'Case'
+            return f'{name}Case'
         elif isinstance(self, RemoveCommonPart):
             reduced_name = name[len(self.prefix):len(name) - len(self.suffix)]
             # Add `Case` suffix in templates to match the naming of corresponding enumeration inner classes.
             if self.prefix == '' and self.suffix == 'template':
-                return reduced_name + 'Case'
+                return f'{reduced_name}Case'
             return reduced_name
 
 

@@ -65,8 +65,10 @@ def __resolve_string_field(name: str,
                                             include_in_documentation_toc=include_in_documentation_toc)
             return Object(name=name, object=None, format=ObjectFormat.DEFAULT), [enumeration]
         else:
-            if len(enum_cases) < 1:
-                raise InvalidFieldRepresentationError(location=location + 'enum', value=enum_cases)
+            if not enum_cases:
+                raise InvalidFieldRepresentationError(
+                    location=f'{location}enum', value=enum_cases
+                )
             return StaticString(value=enum_cases[0]), []
     else:
         format_value: Optional[Union[str, Dict[str, any]]] = dictionary.get('format')
@@ -75,11 +77,13 @@ def __resolve_string_field(name: str,
         elif format_value == 'color':
             return Color(), []
         elif is_dict_with_keys_of_type(format_value, str):
-            property_type, inner_declarations = type_property_build(dictionary=format_value,
-                                                                    outer_name=name,
-                                                                    location=location + 'format',
-                                                                    mode=mode,
-                                                                    config=config)
+            property_type, inner_declarations = type_property_build(
+                dictionary=format_value,
+                outer_name=name,
+                location=f'{location}format',
+                mode=mode,
+                config=config,
+            )
             if not isinstance(property_type, Object):
                 raise UnsupportedFormatTypeError
             assert property_type.format == ObjectFormat.DEFAULT
@@ -203,40 +207,47 @@ def type_property_build(dictionary: Dict[str, any],
             original_name=outer_name,
             include_in_documentation_toc=include_in_documentation_toc,
             root_entity=dictionary.get('root_entity', False),
-            generate_case_for_templates=generate_cases_for_templates(config.lang, dictionary),
-            location=location + 'anyOf',
+            generate_case_for_templates=generate_cases_for_templates(
+                config.lang, dictionary
+            ),
+            location=f'{location}anyOf',
             mode=mode,
-            config=config)
+            config=config,
+        )
         return Object(name=name, object=None, format=ObjectFormat.DEFAULT), entity_enum
 
     type_value: str = dictionary.get('type')
     number_constraints: Optional[str] = dictionary.get('constraint')
 
-    if type_value == 'integer':
-        if dictionary.get('format') == 'boolean':
-            return BoolInt(), []
-        return Int(constraint=number_constraints, long_type=dictionary.get('long_type', False)), []
-    elif type_value == 'number':
-        return Double(constraint=number_constraints), []
-    elif type_value == 'boolean':
-        return Bool(), []
-    elif type_value == 'string':
-        return __resolve_string_field(name=name,
-                                      mode=mode,
-                                      config=config,
-                                      location=location,
-                                      dictionary=dictionary)
-    elif type_value == 'array':
+    if type_value == 'array':
         items_types: Dict[str, any] = dictionary.get('items')
         single_name: str = name[:-1] if name.endswith('s') else name
         min_items: int = dictionary.get('minItems', 1)
         strict_parsing: bool = dictionary.get('strictParsing', False)
-        property_type, declarations = type_property_build(dictionary=items_types,
-                                                          outer_name=single_name,
-                                                          location=location + 'items',
-                                                          mode=mode,
-                                                          config=config)
+        property_type, declarations = type_property_build(
+            dictionary=items_types,
+            outer_name=single_name,
+            location=f'{location}items',
+            mode=mode,
+            config=config,
+        )
         return Array(property_type=property_type, min_items=min_items, strict_parsing=strict_parsing), declarations
+    elif type_value == 'boolean':
+        return Bool(), []
+    elif type_value == 'integer':
+        return (
+            (BoolInt(), [])
+            if dictionary.get('format') == 'boolean'
+            else (
+                Int(
+                    constraint=number_constraints,
+                    long_type=dictionary.get('long_type', False),
+                ),
+                [],
+            )
+        )
+    elif type_value == 'number':
+        return Double(constraint=number_constraints), []
     elif type_value == 'object':
         if dictionary.get('additionalProperties', False) and 'properties' not in dictionary:
             return Dictionary(), []
@@ -246,9 +257,17 @@ def type_property_build(dictionary: Dict[str, any],
                                 mode=mode,
                                 config=config)
         return Object(name=entity.original_name, object=None, format=ObjectFormat.DEFAULT), [entity]
+    elif type_value == 'string':
+        return __resolve_string_field(name=name,
+                                      mode=mode,
+                                      config=config,
+                                      location=location,
+                                      dictionary=dictionary)
     else:
         if not type_value.startswith('$defined_'):
-            raise InvalidFieldRepresentationError(location=location + 'type', value=dictionary)
+            raise InvalidFieldRepresentationError(
+                location=f'{location}type', value=dictionary
+            )
         return Object(name=type_value.replace('$defined_', ''), object=None, format=ObjectFormat.DEFAULT), []
 
 

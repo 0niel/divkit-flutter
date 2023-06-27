@@ -134,8 +134,5 @@ __full_translations: Dict[str, Dict[str, str]] = {
 
 
 def translations(lang: DescriptionLanguage) -> Dict[str, str]:
-    result = dict()
     lang_value = lang.value
-    for key, values in __full_translations.items():
-        result[key] = values[lang_value]
-    return result
+    return {key: values[lang_value] for key, values in __full_translations.items()}

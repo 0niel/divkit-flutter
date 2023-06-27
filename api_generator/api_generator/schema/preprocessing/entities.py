@@ -100,10 +100,7 @@ class SchemaDirectory(SchemaFilesystemItem):
 
     @property
     def has_unresolved_references(self) -> bool:
-        for item in self._items:
-            if item.has_unresolved_references:
-                return True
-        return False
+        return any(item.has_unresolved_references for item in self._items)
 
     def merge_all_ofs(self, lang: GeneratedLanguage):
         for item in self._items:
@@ -121,7 +118,7 @@ class SchemaDirectory(SchemaFilesystemItem):
     def resolve(self, relative_path: str) -> SchemaFilesystemItem:
         components = list(filter(lambda comp: comp, relative_path.split('/')))
 
-        if len(components) < 1:
+        if not components:
             raise errors.InvalidReferenceError
         first_component = components[0]
 
@@ -129,13 +126,15 @@ class SchemaDirectory(SchemaFilesystemItem):
         if first_component == '..':
             if self._parent_dir is None:
                 raise errors.InvalidReferenceError
-            item = self._parent_dir
-        else:
-            filtered_items = list(filter(lambda it: it.name == first_component, self._items))
-            if len(filtered_items) < 1:
-                raise errors.InvalidReferenceError
+            else:
+                item = self._parent_dir
+        elif filtered_items := list(
+            filter(lambda it: it.name == first_component, self._items)
+        ):
             item = filtered_items[0]
 
+        else:
+            raise errors.InvalidReferenceError
         if len(components) == 1:
             return item
 
@@ -291,8 +290,9 @@ class DescriptionReference:
         file: SchemaFile
         path: List[str]
         _, file, path = utils.get_full_reference_location(location, ref)
-        description_value = utils.enclosed_dict_for(keys=path, dictionary=file.contents)
-        if description_value:
+        if description_value := utils.enclosed_dict_for(
+            keys=path, dictionary=file.contents
+        ):
             self._value = description_value
         else:
             raise errors.InvalidFileReferenceError(location, ref)

@@ -64,7 +64,7 @@ def preset_factory_method_declaration(
     declaration += f'): {type_name} = {basic_method_name}('
     for property in cast(List[DivanProperty], entity.instance_properties):
         property_name_declaration = property.name_declaration
-        if property.name in inlines.keys():
+        if property.name in inlines:
             prop_decl = f'{property_name_declaration} = {inlines[property.name]},'
         elif property.name == vararg_prop.name and vararg_items:
             prop_decl = f'{property_name_declaration} = {vararg_prop_name_declaration}.toList(),'
@@ -155,15 +155,14 @@ class DivanEntity(Entity):
     @property
     def supertype_declaration(self) -> str:
         supertypes = self.supertypes_list
-        if not supertypes:
-            return ''
-        return f' : {", ".join(supertypes)}'
+        return '' if not supertypes else f' : {", ".join(supertypes)}'
 
     @property
     def supertypes_list(self) -> List[str]:
-        supertypes = []
-        for enumeration in self.enclosing_enumerations:
-            supertypes.append(f'{utils.capitalize_camel_case(enumeration.name, self.remove_prefix)}')
+        supertypes = [
+            f'{utils.capitalize_camel_case(enumeration.name, self.remove_prefix)}'
+            for enumeration in self.enclosing_enumerations
+        ]
         additional_supertypes = self.protocol_plus_super_entities(with_impl_protocol=False)
         if additional_supertypes is not None:
             supertypes.extend(additional_supertypes.split(', '))
@@ -175,12 +174,17 @@ class DivanEntity(Entity):
         lines = []
         description = self.description_doc()
         if description not in ['None', '']:
-            lines.append(description)
-            lines.append('')
+            lines.extend((description, ''))
         lines.append(translations['div_generator_factory_method_name'].format(factory_method_name))
         if required_prop_names:
-            lines.append('')
-            lines.append(translations['div_generator_required_properties'].format(', '.join(required_prop_names)))
+            lines.extend(
+                (
+                    '',
+                    translations['div_generator_required_properties'].format(
+                        ', '.join(required_prop_names)
+                    ),
+                )
+            )
         return comment(*lines)
 
     @property
@@ -194,22 +198,32 @@ class DivanEntity(Entity):
             vararg_prop.__class__ = DivanProperty
             vararg_prop = cast(DivanProperty, vararg_prop)
             vararg_prop.update_base()
-            result.append((params_declaration, preset_factory_method_declaration(
-                self,
-                factory_method_name=factory.factory_method_name,
-                inlines=factory.inlines,
-                vararg_prop=vararg_prop,
-                vararg_items=True,
-                remove_prefix=self.remove_prefix
-            )))
-            result.append((params_declaration, preset_factory_method_declaration(
-                self,
-                factory_method_name=factory.factory_method_name,
-                inlines=factory.inlines,
-                vararg_prop=vararg_prop,
-                vararg_items=False,
-                remove_prefix=self.remove_prefix
-            )))
+            result.extend(
+                (
+                    (
+                        params_declaration,
+                        preset_factory_method_declaration(
+                            self,
+                            factory_method_name=factory.factory_method_name,
+                            inlines=factory.inlines,
+                            vararg_prop=vararg_prop,
+                            vararg_items=True,
+                            remove_prefix=self.remove_prefix,
+                        ),
+                    ),
+                    (
+                        params_declaration,
+                        preset_factory_method_declaration(
+                            self,
+                            factory_method_name=factory.factory_method_name,
+                            inlines=factory.inlines,
+                            vararg_prop=vararg_prop,
+                            vararg_items=False,
+                            remove_prefix=self.remove_prefix,
+                        ),
+                    ),
+                )
+            )
         return result
 
     def params_comment_block(self,  exclude_params: List[str] = None) -> Text:
@@ -262,8 +276,8 @@ class DivanEntity(Entity):
         for property in cast(List[DivanProperty], self.instance_properties):
             if property.name in exclude:
                 continue
-            if not is_named_guard_added:
-                if property.name not in forced_property_order or force_named_arguments:
+            if property.name not in forced_property_order or force_named_arguments:
+                if not is_named_guard_added:
                     signature_declaration += GUARD_INSTANCE_PARAM
                     is_named_guard_added = True
             required = False
@@ -345,8 +359,8 @@ class DivanEntity(Entity):
 
     @property
     def properties_factory_method_declaration(self) -> Text:
-        type_name = full_name(self, self.remove_prefix) + '.Properties'
-        method_name = self.factory_method_name_with_parent + 'Props'
+        type_name = f'{full_name(self, self.remove_prefix)}.Properties'
+        method_name = f'{self.factory_method_name_with_parent}Props'
         declaration = Text(f'fun DivScope.{method_name}(')
         declaration += self.literal_properties_signature(
             force_named_arguments=True,
@@ -361,8 +375,8 @@ class DivanEntity(Entity):
 
     @property
     def references_factory_method_declaration(self) -> Text:
-        type_name = full_name(self, self.remove_prefix) + '.Properties'
-        method_name = self.factory_method_name_with_parent + 'Refs'
+        type_name = f'{full_name(self, self.remove_prefix)}.Properties'
+        method_name = f'{self.factory_method_name_with_parent}Refs'
         declaration = Text(f'fun TemplateScope.{method_name}(')
         declaration += self.reference_properties_signature().indented(level=1, indent_width=4)
         declaration += f') = {type_name}('
@@ -556,10 +570,9 @@ class DivanStringEnumeration(StringEnumeration):
         comment_lines = []
         description_doc = self.description_doc()
         if description_doc not in ['', 'None']:
-            comment_lines.append(description_doc)
-            comment_lines.append('')
+            comment_lines.extend((description_doc, ''))
         possible_values = translations['div_generator_possible_values']\
-            .format(f"[{', '.join(map(lambda case: case[1], self.cases), )}]")
+                .format(f"[{', '.join(map(lambda case: case[1], self.cases), )}]")
         comment_lines.append(possible_values)
         return comment(*comment_lines)
 

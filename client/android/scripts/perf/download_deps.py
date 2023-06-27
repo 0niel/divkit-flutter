@@ -57,9 +57,13 @@ def download_catapult(config, dest):
     relative = config['bro_catapult']['relative']
     url = ('https://bitbucket.browser.yandex-team.ru'
            '/rest/api/1.0/projects/STARDUST/repos/browser/archive')
-    params = {'at': config['bro_catapult']['commit'], 'format': 'zip',
-              'path': ['{}/{}'.format(relative, path)
-                       for path in config['bro_catapult']['paths']]}
+    params = {
+        'at': config['bro_catapult']['commit'],
+        'format': 'zip',
+        'path': [
+            f'{relative}/{path}' for path in config['bro_catapult']['paths']
+        ],
+    }
     download_and_unpack_zip(url, dest, params)
     move_to_root(dest, relative)
 

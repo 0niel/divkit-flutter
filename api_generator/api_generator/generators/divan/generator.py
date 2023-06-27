@@ -210,7 +210,7 @@ class DivanGenerator(Generator):
                 enums.append(obj)
             elif isinstance(obj, Entity):
                 enums.extend(self.__inner_string_enums(obj))
-        values = dict()
+        values = {}
         for enum in enums:
             # filtering like "type" properties
             if len(enum.cases) > 1:
@@ -280,4 +280,4 @@ class DivanGenerator(Generator):
         return extension_declaration
 
     def format_value_object_name(self, value_name: str) -> str:
-        return utils.capitalize_camel_case(value_name, self.remove_prefix) + "EnumValue"
+        return f"{utils.capitalize_camel_case(value_name, self.remove_prefix)}EnumValue"

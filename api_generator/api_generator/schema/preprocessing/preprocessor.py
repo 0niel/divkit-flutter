@@ -105,7 +105,7 @@ def clean_unused_definitions(dictionary: Dict[str, any]) -> Dict[str, any]:
     definitions: Dict[str, any] = dictionary.get('definitions')
     if definitions is None:
         return dictionary
-    used_definitions: Dict[str, any] = dict()
+    used_definitions: Dict[str, any] = {}
     for name, definition in definitions.items():
         if number_of_references(obj_name=name, dictionary=dictionary) > 0:
             used_definitions[name] = definition

@@ -62,8 +62,7 @@ def modified_path(path):
         if path == sys.path[0]:
             sys.path.pop(0)
         else:
-            logging.warning('Expected {} in path, found {}'.format(
-                path, sys.path[0]))
+            logging.warning(f'Expected {path} in path, found {sys.path[0]}')
 
 
 @contextlib.contextmanager
@@ -74,9 +73,9 @@ def modified_env(key, value):
         yield
     finally:
         final_value = os.environ.pop(key)
-        assert value == final_value, \
-            'Expected {} in env for {}, found {}'.format(
-                value, key, final_value)
+        assert (
+            value == final_value
+        ), f'Expected {value} in env for {key}, found {final_value}'
         if old_value is not None:
             os.environ[key] = old_value
 
@@ -133,7 +132,7 @@ def format_items(test, metrics):
         escaped_metric = urllib.quote_plus(metric.encode('utf-8'))
         yield {
             'description': None,
-            'selector': '{}/{}/summary'.format(test, escaped_metric),
+            'selector': f'{test}/{escaped_metric}/summary',
             'type': 'list_of_scalar_values',
             'units': 'ms',
             'value': values,
@@ -198,8 +197,7 @@ def parse_args():
     rp.add_argument('--repeat', type=int,
                     help='Number of repetitions instead of default')
     rp.add_argument('--output', help='Directory to write results to')
-    rp.add_argument('NAME', help='Benchmark to run',
-                    choices=[name for name in ALL_BENCHMARKS])
+    rp.add_argument('NAME', help='Benchmark to run', choices=list(ALL_BENCHMARKS))
     rp.set_defaults(func=run_benchmark)
 
     return p.parse_args()

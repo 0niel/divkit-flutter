@@ -35,7 +35,7 @@ class DocumentationGenerator(Generator):
         objects_doc: List[DocumentationDeclarable] = list(map(lambda obj: update_declarable_base(obj), objects))
         for lang in DescriptionLanguage:
             self.__lang = lang
-            self._output_path = self._config.output_path + '/' + lang
+            self._output_path = f'{self._config.output_path}/{lang}'
             self.__translations = translations(lang)
             Path(self._output_path).mkdir(parents=True, exist_ok=True)
             self._generate_files(objects_doc)
@@ -70,7 +70,7 @@ class DocumentationGenerator(Generator):
         ])
 
     def filename(self, name: str) -> str:
-        return name + '.md'
+        return f'{name}.md'
 
     def _entity_declaration(self, entity: DocumentationEntity) -> Text:
         deprecation = self.__translations['div_generator_type_deprecated'] if entity.is_deprecated else ''
@@ -96,7 +96,7 @@ class DocumentationGenerator(Generator):
         return description if description else self.__translations['div_generator_no_description']
 
     def __fields_table(self, entity: DocumentationEntity, table_name: Optional[str] = None) -> str:
-        header = ('### ' + table_name + '\n') if table_name is not None else ''
+        header = f'### {table_name}' + '\n' if table_name is not None else ''
         params_header = self.__translations['div_generator_parameters']
         description_header = self.__translations['div_generator_description']
 

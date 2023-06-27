@@ -59,9 +59,7 @@ def _string_id_property(obj: Declarable) -> Optional[Property]:
     p = next((p for p in obj.properties if p.name == 'id'), None)
     if p is None:
         return None
-    if isinstance(p.property_type, String):
-        return p
-    return None
+    return p if isinstance(p.property_type, String) else None
 
 
 class SwiftGenerator(Generator):
@@ -74,8 +72,7 @@ class SwiftGenerator(Generator):
 
     def _main_declaration(self, obj: Declarable) -> Text:
         main_decl = super()._main_declaration(obj)
-        extension = '\n\n'.join(self.__extensions_declaration(obj))
-        if extension:
+        if extension := '\n\n'.join(self.__extensions_declaration(obj)):
             return main_decl + EMPTY + extension
         else:
             return main_decl
@@ -105,7 +102,7 @@ class SwiftGenerator(Generator):
             equatable_extension += '  }'
             equatable_extension += '}'
             equatable_extension += '#endif'
-            self_extensions.append(str(equatable_extension))
+            self_extensions.append(equatable_extension)
 
             extension_prefix = f'extension {entity.prefixed_declaration}'
             serialization = Text(f'{extension_prefix}: Serializable {{')
@@ -118,7 +115,7 @@ class SwiftGenerator(Generator):
             serialization += '    return result'
             serialization += '  }'
             serialization += '}'
-            self_extensions.append(str(serialization))
+            self_extensions.append(serialization)
 
         inner_types_extensions = []
         for inner_type in entity.inner_types:
@@ -152,7 +149,7 @@ class SwiftGenerator(Generator):
         deserializable_extension += body.indented(level=2)
         deserializable_extension += '  }'
         deserializable_extension += '}'
-        deserializable_extension = str(deserializable_extension)
+        deserializable_extension = deserializable_extension
 
         equatable_extension = Text('#if DEBUG')
         pref = entity_enumeration.prefixed_declaration
@@ -170,7 +167,7 @@ class SwiftGenerator(Generator):
         equatable_extension += '  }'
         equatable_extension += '}'
         equatable_extension += '#endif'
-        equatable_extension = str(equatable_extension)
+        equatable_extension = equatable_extension
 
         if entity_enumeration.mode is GenerationMode.NORMAL_WITHOUT_TEMPLATES:
             result = [deserializable_extension, equatable_extension]
@@ -185,7 +182,7 @@ class SwiftGenerator(Generator):
             serialization_extension += '    return value.toDictionary()'
             serialization_extension += '  }'
             serialization_extension += '}'
-            result.append(str(serialization_extension))
+            result.append(serialization_extension)
 
         return result
 
@@ -199,9 +196,10 @@ class SwiftGenerator(Generator):
         result: Text = Text(self.__main_declaration_header(entity))
 
         if entity.inner_types:
-            inner_type_declarations = []
-            for inner_type in entity.inner_types:
-                inner_type_declarations.append(str(super()._main_declaration(inner_type).indented()))
+            inner_type_declarations = [
+                str(super()._main_declaration(inner_type).indented())
+                for inner_type in entity.inner_types
+            ]
             result += '\n\n'.join(sorted(inner_type_declarations))
             result += EMPTY
 
@@ -224,7 +222,7 @@ class SwiftGenerator(Generator):
                 result += EMPTY
 
         if entity.generation_mode is GenerationMode.NORMAL_WITHOUT_TEMPLATES or \
-                entity.generation_mode.is_template:
+                    entity.generation_mode.is_template:
             result += entity.deserializing_constructor_declaration.indented()
             result += EMPTY
 
@@ -270,9 +268,7 @@ class SwiftGenerator(Generator):
         entity_enumeration.__class__ = SwiftEntityEnumeration
         access_modifier = self._access_level.value
         name = utils.capitalize_camel_case(entity_enumeration.name)
-        protocol = ''
-        if entity_enumeration.mode.is_template:
-            protocol = ': TemplateValue'
+        protocol = ': TemplateValue' if entity_enumeration.mode.is_template else ''
         header = f'@frozen\n{access_modifier}enum {name}{protocol} {{'
         result = Text(header)
 

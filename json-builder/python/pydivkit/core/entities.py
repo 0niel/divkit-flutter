@@ -84,10 +84,8 @@ def _cast_value_type(value: Any, type_: Any) -> Any:  # noqa
             setattr(type_, "__injected_types__", True)
         types = getattr(type_, "__types__", None)
         if types and isinstance(value, dict):
-            type_value = value.get(TYPE_FIELD)
-            if type_value:
-                target_type = types.get(type_value)
-                if target_type:
+            if type_value := value.get(TYPE_FIELD):
+                if target_type := types.get(type_value):
                     return target_type(**value)
                 raise ValueError(
                     f"Union {type_} does not contain type {type_value}.",
@@ -108,8 +106,6 @@ def _cast_value_type(value: Any, type_: Any) -> Any:  # noqa
         return value
 
     if isinstance(value, BaseEntity):
-        if isinstance(value, type_):
-            return value
         raise ValueError(
             f"Value {value} has wrong type. Expected type is {type_}",
         )
@@ -134,14 +130,12 @@ def dump(obj: Any) -> Any:
     if isinstance(obj, Sequence):
         return [dump(obj_item) for obj_item in obj]
     if isinstance(obj, Mapping):
-        return {k: v for k, v in obj.items()}
+        return dict(obj.items())
     if isinstance(obj, Expr):
         return str(obj)
     if isinstance(obj, BaseEntity):
         return obj.dict()
-    if isinstance(obj, enum.Enum):
-        return obj.value
-    return obj
+    return obj.value if isinstance(obj, enum.Enum) else obj
 
 
 def _update_related_templates(
@@ -157,10 +151,11 @@ def _update_related_templates(
 
 def _unpack_optional_type(type_: Any) -> Any:
     if get_origin(type_) is Union:
-        inner_types = []
-        for inner_type in get_args(type_):
-            if get_origin(inner_type) or not isinstance(None, inner_type):
-                inner_types.append(inner_type)
+        inner_types = [
+            inner_type
+            for inner_type in get_args(type_)
+            if get_origin(inner_type) or not isinstance(None, inner_type)
+        ]
         return Union[tuple(inner_types)]
     return type_
 
@@ -353,10 +348,11 @@ class BaseEntity:
 
     @classmethod
     def _remove_fields_from_cls_attrs(cls) -> None:
-        to_remove = []
-        for attr_name, attr_value in cls.__dict__.items():
-            if isinstance(attr_value, _Field):
-                to_remove.append(attr_name)
+        to_remove = [
+            attr_name
+            for attr_name, attr_value in cls.__dict__.items()
+            if isinstance(attr_value, _Field)
+        ]
         for attr_name in to_remove:
             delattr(cls, attr_name)
 
@@ -381,11 +377,10 @@ class BaseEntity:
         for base in cls.__bases__:
             base_fields = getattr(base, "__fields__", None)
             if issubclass(base, BaseEntity) and base_fields:
-                fields.update(base_fields)
+                fields |= base_fields
         for key, value in cls.__dict__.items():
             if isinstance(value, _Field):
-                field_ref = value.ref_to
-                if field_ref:
+                if field_ref := value.ref_to:
                     value = fields[key]
                     if value.is_ref:
                         raise ValueError("Ref cannot point to another ref")
@@ -409,13 +404,11 @@ class BaseEntity:
         cls._validate_field_types_of_bases(cls_hints)
         cls._validate_field_types(fields, cls_hints)
 
-        field_types = {}
-        for key in fields.keys():
-            field_types[key] = cls_hints[key]
+        field_types = {key: cls_hints[key] for key in fields.keys()}
         for base in cls.__bases__:
             base_field_types = getattr(base, "__field_types__", None)
             if issubclass(base, BaseEntity) and base_field_types:
-                field_types.update(base_field_types)
+                field_types |= base_field_types
 
         for field_name, field_type in field_types.items():
             field = cls.__fields__[field_name]
@@ -483,10 +476,11 @@ class BaseEntity:
         if isinstance(obj, BaseEntity):
             return obj._extract_all_ref_types()
         elif isinstance(obj, list):
-            ref_types_seq = []
-            for item in obj:
-                if isinstance(item, BaseEntity):
-                    ref_types_seq.append(item._extract_all_ref_types())
+            ref_types_seq = [
+                item._extract_all_ref_types()
+                for item in obj
+                if isinstance(item, BaseEntity)
+            ]
             return cls._merge_ref_types(*ref_types_seq)
         return MappingProxyType({})
 
@@ -699,9 +693,7 @@ class BaseDiv(BaseEntity):
 
     @staticmethod
     def _make_union(type: Type[Any]) -> Set[Type[Any]]:
-        if get_origin(type) is Union:
-            return set(get_args(type))
-        return {type}
+        return set(get_args(type)) if get_origin(type) is Union else {type}
 
     @classmethod
     def _validate_subclass(
@@ -768,7 +760,7 @@ class BaseDiv(BaseEntity):
                 "Types conflict: class must be derived from the BaseDiv class",
             )
         type_field = base_cls.__fields__.get(TYPE_FIELD)
-        if (base_cls is BaseDiv) or not (type_field and type_field.default):
+        if base_cls is BaseDiv or not type_field or not type_field.default:
             return None
         return type_field.default
 

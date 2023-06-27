@@ -61,14 +61,14 @@ def swift_template_deserializable_args(mode: GenerationMode):
 
 
 def _swift_default_value_declaration_comment(p: Property) -> str:
-    if isinstance(p.property_type, Object) and not isinstance(p.property_type.object, StringEnumeration):
-        property_type = cast(SwiftPropertyType, Object(name='',
-                                                       object=p.property_type.object,
-                                                       format=ObjectFormat.DEFAULT))
-        comment_value = property_type.internal_declaration(p.default_value)
-    else:
-        comment_value = p.default_value
-    return comment_value
+    if not isinstance(p.property_type, Object) or isinstance(
+        p.property_type.object, StringEnumeration
+    ):
+        return p.default_value
+    property_type = cast(SwiftPropertyType, Object(name='',
+                                                   object=p.property_type.object,
+                                                   format=ObjectFormat.DEFAULT))
+    return property_type.internal_declaration(p.default_value)
 
 
 class SwiftEntity(Entity):
@@ -131,7 +131,7 @@ class SwiftEntity(Entity):
             line = f'{prop.declaration_name}: try dictionary.{prop.deserialization_expression(False)}{tail}'
             properties_deserialization += [Text(indent_width=2, init_lines=line)]
         properties_deserialization += [Text(')')]
-        if not any(not p.optional for p in props):
+        if all(p.optional for p in props):
             result += list(map(lambda t: t.indented(), properties_deserialization))
         else:
             result += '  do {'
@@ -151,20 +151,19 @@ class SwiftEntity(Entity):
         result = Text('init(')
         tails = [','] * (len(props) - 1) + ['']
         for prop, tail in zip(props, tails):
-            if not self.generation_mode.is_template:
-                if prop.parsed_value_is_optional:
-                    nullability = '' if prop.should_be_optional else '?'
-                    generate_optional_args = True
-                    if isinstance(self.generator_properties, SwiftGeneratorProperties):
-                        properties = cast(SwiftGeneratorProperties, self.generator_properties)
-                        generate_optional_args = properties.generate_optional_args
-                    optionality = ' = nil' if generate_optional_args else ''
-                else:
-                    nullability = ''
-                    optionality = ''
-            else:
+            if self.generation_mode.is_template:
                 nullability = ''
                 optionality = ' = nil' if prop.mode.is_template else ''
+            elif prop.parsed_value_is_optional:
+                nullability = '' if prop.should_be_optional else '?'
+                generate_optional_args = True
+                if isinstance(self.generator_properties, SwiftGeneratorProperties):
+                    properties = cast(SwiftGeneratorProperties, self.generator_properties)
+                    generate_optional_args = properties.generate_optional_args
+                optionality = ' = nil' if generate_optional_args else ''
+            else:
+                nullability = ''
+                optionality = ''
             result += f'  {prop.declaration_name}: {prop.type_declaration}{nullability}{optionality}{tail}'
         result += ') {'
 
@@ -261,7 +260,7 @@ class SwiftEntity(Entity):
             else:
                 name = prop.declaration_name
                 if prop.internal_validator_declaration(GenerationMode.NORMAL_WITH_TEMPLATES) is None or \
-                        prop.supports_expressions:
+                            prop.supports_expressions:
                     value = ''
                 else:
                     value = f'validatedBy: ResolvedValue.{prop.validator_var_name}'
@@ -287,8 +286,9 @@ class SwiftEntity(Entity):
         result += '    }'
         result += '  }'
 
-        templateable_props = list(filter(lambda p: p.property_type.can_be_templated, template_props))
-        if templateable_props:
+        if templateable_props := list(
+            filter(lambda p: p.property_type.can_be_templated, template_props)
+        ):
             result += '  if let parent = parent {'
             for prop in templateable_props:
                 local_var_name = prop.value_resolving_local_var_name
@@ -406,7 +406,7 @@ class SwiftProperty(Property):
 
     @property
     def value_resolving_local_var_name(self) -> str:
-        return self.declaration_name + 'Value'
+        return f'{self.declaration_name}Value'
 
     @property
     def resolve_value_expression(self) -> str:
@@ -537,17 +537,18 @@ class SwiftProperty(Property):
 
     def internal_validator_declaration(self, mode: GenerationMode) -> Optional[str]:
         if mode is GenerationMode.TEMPLATE:
-            if isinstance(self.property_type, Array) and self.property_type.strict_parsing:
-                pass
-            else:
+            if (
+                not isinstance(self.property_type, Array)
+                or not self.property_type.strict_parsing
+            ):
                 return None
         if isinstance(self.property_type, Array) and \
-                (self.property_type.min_items > 0 or self.property_type.strict_parsing):
+                    (self.property_type.min_items > 0 or self.property_type.strict_parsing):
             validator_type = 'Strict' if self.property_type.strict_parsing else ''
             validator_name = f'make{validator_type}ArrayValidator'
             validator_args = [f'minItems: {self.property_type.min_items}']
         elif isinstance(self.property_type, String) and \
-                (self.property_type.min_length > 0 or self.optional or self.property_type.regex is not None):
+                    (self.property_type.min_length > 0 or self.optional or self.property_type.regex is not None):
             optimized = 'CFString' if self.property_type.enable_optimization else 'String'
             validator_name = f'make{optimized}Validator'
             min_length = self.property_type.min_length
@@ -572,12 +573,11 @@ class SwiftProperty(Property):
         elif isinstance(self.property_type, Array) and self.optional:
             validator_name = 'makeNoOpArrayValidator'
             validator_args = []
+        elif self.optional:
+            validator_name = 'makeNoOpValueValidator'
+            validator_args = []
         else:
-            if self.optional:
-                validator_name = 'makeNoOpValueValidator'
-                validator_args = []
-            else:
-                return None
+            return None
 
         prefix = f'{validator_name}('
         separator = f',\n{" " * len(prefix)}'
@@ -599,11 +599,10 @@ class SwiftProperty(Property):
         if isinstance(self.property_type, Array):
             type_suffix = 'Array'
             item_type = cast(SwiftPropertyType, self.property_type.property_type)
-            type_str = item_type.declaration(mode)
         else:
             type_suffix = 'Field'
             item_type = cast(SwiftPropertyType, self.property_type)
-            type_str = item_type.declaration(mode)
+        type_str = item_type.declaration(mode)
         include_type = in_value_resolving and self.property_type.can_be_templated
         type_arg = f', type: {type_str}.self' if include_type else ''
         if not include_type and self.property_type.can_be_templated:
@@ -718,9 +717,7 @@ class SwiftPropertyType(PropertyType):
                         prefix = obj.template_declaration_prefix
             name_to_use: str
             obj = self.object
-            if isinstance(obj, Entity):
-                name_to_use = obj.resolved_name + mode.value.name_suffix
-            elif isinstance(obj, EntityEnumeration):
+            if isinstance(obj, (Entity, EntityEnumeration)):
                 name_to_use = obj.resolved_name + mode.value.name_suffix
             elif isinstance(obj, StringEnumeration):
                 name_to_use = obj.name

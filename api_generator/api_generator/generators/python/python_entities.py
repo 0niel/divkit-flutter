@@ -121,13 +121,15 @@ class PythonEntity(Entity):
         static_properties = self.static_properties
         instance_properties = self.instance_properties
         optional = list(map(lambda p: f'{p.escaped_name}: str = {p.static_value}', static_properties))
-        for p in cast(List[PythonProperty], instance_properties):
-            optional.append(f'{p.escaped_name}: typing.Optional[{p.property_type_py.final_type(filename)}] = None')
+        optional.extend(
+            f'{p.escaped_name}: typing.Optional[{p.property_type_py.final_type(filename)}] = None'
+            for p in cast(List[PythonProperty], instance_properties)
+        )
         result = Text()
         result += 'def __init__('
         result += Text(', '.join(main_required) + ',').indented(indent_width=4)
         for p in required + optional:
-            result += Text(p + ',').indented(indent_width=4)
+            result += Text(f'{p},').indented(indent_width=4)
         result += Text('**kwargs: typing.Any,').indented(indent_width=4)
         result += '):'
         super_init = Text('super().__init__(')
@@ -169,7 +171,7 @@ class PythonEntity(Entity):
         result = Text()
         py_filename = _python_full_name(self)
         props = cast(List[PythonProperty], self.instance_properties)
-        for ind, p in enumerate(props):
+        for p in props:
             result += p.make_declaration(filename=py_filename).indented(indent_width=4)
         return result
 
@@ -206,20 +208,16 @@ class PythonProperty(Property):
     @property
     def commentary(self) -> Optional[Text]:
         result = Text()
-        description = self.description_doc()
-        if description:
+        if description := self.description_doc():
             result += as_python_commentary(description)
         if self.is_deprecated:
             result += '@deprecated'
-        if result.lines:
-            return result
-        return None
+        return result if result.lines else None
 
     def make_declaration(self, filename: str) -> Text:
         fields: List[str] = []
 
-        constraints = self.property_type_py.constraints
-        if constraints:
+        if constraints := self.property_type_py.constraints:
             fields.append(constraints)
 
         commentary = self.commentary
@@ -270,9 +268,7 @@ class PythonPropertyType(PropertyType):
 
     def final_type(self, filename: str) -> str:
         typename = self.type_name(filename)
-        if self.is_expr():
-            return f"typing.Union[Expr, {typename}]"
-        return typename
+        return f"typing.Union[Expr, {typename}]" if self.is_expr() else typename
 
     def type_name(self, filename: str) -> str:
         if isinstance(self, Int):

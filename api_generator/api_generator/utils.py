@@ -47,10 +47,10 @@ def upper_snake_case(string: str) -> str:
 
 
 def lower_camel_case(string: str) -> str:
-    components = name_components(string)
-    if not components:
+    if components := name_components(string):
+        return ''.join([components[0].lower()] + list(map(lambda component: component.capitalize(), components[1::])))
+    else:
         return ''
-    return ''.join([components[0].lower()] + list(map(lambda component: component.capitalize(), components[1::])))
 
 
 def constant_upper_case(string: str):
@@ -61,9 +61,7 @@ def fixing_first_digit(string: str) -> str:
     if not string:
         return string
     first_char = string[0]
-    if first_char.isdigit():
-        return f'_{string}'
-    return string
+    return f'_{string}' if first_char.isdigit() else string
 
 
 def clear_content_of_directory(directory: str) -> None:
@@ -119,7 +117,7 @@ def sha256_for_filenames(filenames: List[str]) -> str:
     hash = hashlib.sha256()
     for name in sorted(filenames):
         hash.update(name.encode())
-    return str(hash.hexdigest())
+    return hash.hexdigest()
 
 
 def indent(

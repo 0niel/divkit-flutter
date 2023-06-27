@@ -204,15 +204,13 @@ class DocumentationArray(Array, DocumentationPropertyType):
                          suffix: str) -> Text:
         array_type_description = self.__property_type_doc.json_description(obj_stack=obj_stack, prefix='', suffix=',')
         if len(array_type_description.lines) > 1:
-            result = Text(prefix + '[')
+            result = Text(f'{prefix}[')
             result += array_type_description.indented()
             result += '  ...'
-            result += ']' + suffix
+            result += f']{suffix}'
             return result
         return self.__property_type_doc.json_description(
-            obj_stack=obj_stack,
-            prefix=prefix + '[ ',
-            suffix=', ... ]' + suffix
+            obj_stack=obj_stack, prefix=f'{prefix}[ ', suffix=f', ... ]{suffix}'
         )
 
     def constraints(self, dictionary: Dict[str, str]) -> str:

@@ -13,17 +13,11 @@ def get_full_name(current: Declarable) -> str:
 def make_imports(items: List[str]) -> List[str]:
     if not items:
         return []
-    result = []
-    for item in items:
-        result.append(f"import '{utils.snake_case(item)}.dart';")
-    return result
+    return [f"import '{utils.snake_case(item)}.dart';" for item in items]
 
 
 dart_keywords = ['default']
 
 
 def allowed_name(name: str) -> str:
-    if name in dart_keywords:
-        return f'{name}_'
-    else:
-        return name
+    return f'{name}_' if name in dart_keywords else name

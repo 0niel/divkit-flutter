@@ -1,4 +1,2 @@
 def fixing_keywords(string: str) -> str:
-    if string == 'default':
-        return '`default`'
-    return string
+    return '`default`' if string == 'default' else string

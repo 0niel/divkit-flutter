@@ -141,8 +141,7 @@ class PythonGenerator(Generator):
 
     def __inner_entity_declaration_without_imports(self, entity: PythonEntity, filename: str) -> Text:
         result = Text()
-        description = entity.description_doc()
-        if description:
+        if description := entity.description_doc():
             result += as_python_commentary(description)
         py_full_name = _python_full_name(entity)
         result += f'class {py_full_name}(BaseDiv):'

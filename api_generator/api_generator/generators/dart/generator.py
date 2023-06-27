@@ -100,7 +100,7 @@ class DartGenerator(Generator):
             property_type = cast(DartPropertyType, instance_prop.property_type)
             prop_type = property_type.declaration()
             option = '?' if instance_prop.optional and not instance_prop.has_default else ''
-            comment = f'{" " + instance_prop.comment}' + '\n'
+            comment = f'{f" {instance_prop.comment}"}' + '\n'
             result += f'{comment}{override}  final {prop_type}{option} {utils.lower_camel_case(instance_prop.name)};'
 
         # Equatable declaration
@@ -116,9 +116,9 @@ class DartGenerator(Generator):
             result += '  @override'
             result += '  List<Object?> get props => [];'
 
+        result += EMPTY
         # Serializable declaration
         if len(entity.instance_properties) != 0:
-            result += EMPTY
             result += f'  static {full_name}? fromJson(Map<String, dynamic>? json)' + ' {'
             result += '    if (json == null) {'
             result += '      return null;'
@@ -128,16 +128,13 @@ class DartGenerator(Generator):
                 decode_strategy = prop.get_parse_strategy()
                 result += f"      {utils.lower_camel_case(prop.name)}: {prop.add_default_value_to(decode_strategy, in_constructor=False)},"
             result += '    );'
-            result += '  }'
         else:
-            result += EMPTY
             result += f'  static {full_name}? fromJson(Map<String, dynamic>? json)' + ' {'
             result += '    if (json == null) {'
             result += '      return null;'
             result += '    }'
             result += f'    return const {full_name}();'
-            result += '  }'
-
+        result += '  }'
         result += '}'
 
         # Recursive declaration of internal classes (since dart does not support them)
@@ -168,7 +165,7 @@ class DartGenerator(Generator):
 
         result += f'class {full_name} with EquatableMixin' + ' {'
 
-        result += f'  const {full_name}' + '('
+        result += f'  const {full_name}('
         result += f'    {interface_name} value'
         result += '  ) : _value = value;'
         result += EMPTY
@@ -241,8 +238,8 @@ class DartGenerator(Generator):
         result += '    switch (json[\'type\']) {'
         for i in range(entity_len):
             result += f'      case {utils.capitalize_camel_case(entity_enumeration.entity_names[i])}.type :\n' \
-                      f'        return {full_name}.{utils.lower_camel_case(entity_enumeration.entity_names[i])}' \
-                      f'({utils.capitalize_camel_case(entity_enumeration.entity_names[i])}.fromJson(json)!);'
+                          f'        return {full_name}.{utils.lower_camel_case(entity_enumeration.entity_names[i])}' \
+                          f'({utils.capitalize_camel_case(entity_enumeration.entity_names[i])}.fromJson(json)!);'
         result += '    }'
         result += '    return null;'
         result += '  }'
@@ -292,7 +289,7 @@ class DartGenerator(Generator):
         for i, prop in enumerate(props):
             name = prop.declaration_name
             type_decl = prop.type_declaration
-            comment = f'{" " + prop.comment}' + '\n'
+            comment = f'{f" {prop.comment}"}' + '\n'
             result += f'{comment}  {type_decl} get {name};'
             if i != len(props) - 1:
                 result += '\n'

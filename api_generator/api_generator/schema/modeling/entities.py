@@ -37,7 +37,7 @@ def _build_generator_properties(
         properties_list: List[Property],
 ) -> Optional[GeneratorProperties]:
     generator_properties: Dict[str, Any] = dictionary.get("codegen", None)
-    generator_properties_location = location + "codegen"
+    generator_properties_location = f"{location}codegen"
     if generator_properties is None:
         return None
 
@@ -94,7 +94,7 @@ def _build_documentation_generator_properties(
         mode: GenerationMode,
 ) -> Optional[DocumentationGeneratorProperties]:
     generator_properties: Dict[str, Any] = dictionary.get("codegen", None)
-    generator_properties_location = location + "codegen"
+    generator_properties_location = f"{location}codegen"
     if generator_properties is None:
         return None
 
@@ -121,11 +121,9 @@ def _build_documentation_generator_properties(
 
 
 def _get_property_by_name(name: str, properties: List[Property], location: ElementLocation) -> Property:
-    found_property = None
-    for property in properties:
-        if property.name == name:
-            found_property = property
-            break
+    found_property = next(
+        (property for property in properties if property.name == name), None
+    )
     if found_property is None:
         raise GenericError(location, f"Object does not contains \"{name}\" property")
     return deepcopy(found_property)
@@ -264,13 +262,19 @@ class Entity(Declarable):
         self._generation_mode: GenerationMode = mode
         self._errors_collector_enabled: bool = not mode.is_template and name in config.errors_collectors
 
-        input_properties: Dict[str, any] = dictionary.get('properties', dict())
+        input_properties: Dict[str, any] = dictionary.get('properties', {})
         if not is_dict_with_keys_of_type(value=input_properties, key_type=str):
-            raise GenericError(location=location + 'properties', text='Must have format [String : Any]')
+            raise GenericError(
+                location=f'{location}properties',
+                text='Must have format [String : Any]',
+            )
 
         input_properties_with_dict_values: Dict[str, Dict[str, any]] = input_properties
         if not all(is_dict_with_keys_of_type(value, str) for value in input_properties_with_dict_values.values()):
-            raise GenericError(location=location + 'properties', text='Must have format [String : [String : Any]]')
+            raise GenericError(
+                location=f'{location}properties',
+                text='Must have format [String : [String : Any]]',
+            )
         properties, inner_types = builders.property_build(properties=input_properties_with_dict_values,
                                                           required=dictionary.get('required'),
                                                           location=location,
@@ -368,9 +372,7 @@ class Entity(Declarable):
             protocols.append(protocol_name)
         if self.super_entities is not None:
             protocols.append(self.super_entities)
-        if not protocols:
-            return None
-        return ', '.join(protocols)
+        return None if not protocols else ', '.join(protocols)
 
     @property
     def properties(self) -> List[Property]:
@@ -427,9 +429,7 @@ class Entity(Declarable):
     @property
     def static_type(self) -> Optional[str]:
         prop = next((p for p in self._properties if p.name == 'type' and isinstance(p.property_type, StaticString)), None)
-        if prop is not None:
-            return cast(StaticString, prop.property_type).value
-        return None
+        return None if prop is None else cast(StaticString, prop.property_type).value
 
     def description_doc(self, lang: DescriptionLanguage = DescriptionLanguage.EN) -> str:
         return description_doc(self._description_object, lang, self._description)
@@ -442,11 +442,10 @@ class Entity(Declarable):
             if result is not None:
                 if isinstance(result, StringEnumeration):
                     return Object(name=property_type.name, object=result, format=property_type.format)
-                else:
-                    actual_name = property_type.name + self._generation_mode.name_suffix
-                    valid_obj = next(
-                        d for d in global_objects if d.name == actual_name or d.original_name == property_type.name)
-                    return Object(name=actual_name, object=valid_obj, format=property_type.format)
+                actual_name = property_type.name + self._generation_mode.name_suffix
+                valid_obj = next(
+                    d for d in global_objects if d.name == actual_name or d.original_name == property_type.name)
+                return Object(name=actual_name, object=valid_obj, format=property_type.format)
             return property_type
         elif isinstance(property_type, Array):
             return Array(
@@ -624,10 +623,7 @@ class EntityEnumeration(Declarable):
     def common_interface(self, lang: GeneratedLanguage) -> Optional[str]:
         common_interface = self._common_interface_without_serializable
         if lang is GeneratedLanguage.SWIFT:
-            if common_interface is not None:
-                common_interface = f' & {common_interface}'
-            else:
-                common_interface = ''
+            common_interface = '' if common_interface is None else f' & {common_interface}'
             return f'Serializable{common_interface}'
         return common_interface
 
@@ -988,11 +984,11 @@ class DivanGeneratorProperties(GeneratorProperties):
         self.required_properties = specific_properties.get("required_properties_at_factory", False)
 
     def __resolve_forced_properties_order(self, location: ElementLocation, properties_list: List[Property]):
-        found_properties: Set[str] = set()
-        for property in properties_list:
-            if property.name in self.forced_properties_order:
-                found_properties.add(property.name)
-
+        found_properties: Set[str] = {
+            property.name
+            for property in properties_list
+            if property.name in self.forced_properties_order
+        }
         if len(self.forced_properties_order) != len(found_properties):
             not_contains_props = ', '.join(filter(lambda prop: prop not in found_properties, self.forced_properties_order))
             raise GenericError(location, f"Object does not contains properties: {not_contains_props}")
@@ -1003,8 +999,7 @@ class DivanGeneratorProperties(GeneratorProperties):
             factories_dict: Dict[str, any],
             properties_list: List[Property]
     ):
-        for factory_method_name in factories_dict:
-            factory = factories_dict[factory_method_name]
+        for factory_method_name, factory in factories_dict.items():
             divan_factory = DivanFactory(factory_method_name=factory_method_name)
             if "vararg_property" in factory:
                 vararg_property = _get_property_by_name(
@@ -1016,7 +1011,7 @@ class DivanGeneratorProperties(GeneratorProperties):
                     raise GenericError(location + factory_method_name + "vararg_property", "Expected array type")
                 divan_factory.vararg_property = vararg_property
             if "inlines" in factory:
-                divan_factory.inlines = dict()
+                divan_factory.inlines = {}
                 for inline_property_name, inline_value in factory["inlines"].items():
                     inline_property = _get_property_by_name(
                         name=inline_property_name,

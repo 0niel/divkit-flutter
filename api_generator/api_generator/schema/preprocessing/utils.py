@@ -19,9 +19,7 @@ def enclosed_dict_for(keys: List[Key], dictionary: Dict[Key, any]) -> Dict[Key, 
 
 
 def get_value_with_optional_by_lang(key: str, lang: GeneratedLanguage, dictionary: Dict[str, any]) -> Optional[Value]:
-    if key in dictionary:
-        return dictionary[key]
-    return dictionary.get(f'{key}_{lang.value}')
+    return dictionary.get(key, dictionary.get(f'{key}_{lang.value}'))
 
 
 def is_list_of_type(value, list_type) -> bool:
@@ -37,7 +35,7 @@ def number_of_references(obj_name: str, dictionary: Dict[str, any]) -> int:
             result += sum(map(lambda element: number_of_references(obj_name=obj_name, dictionary=element), item))
 
     ref = dictionary.get('$ref')
-    if isinstance(ref, str) and ref.endswith('/' + obj_name):
+    if isinstance(ref, str) and ref.endswith(f'/{obj_name}'):
         result += 1
 
     def_type = dictionary.get('type')
@@ -77,7 +75,7 @@ def get_full_reference_location(location: ElementLocation, ref: str) -> (str, Sc
             path: List[str] = []
 
         ref_dir_path = '/'.join(components[0].split('/')[:-1])
-        prefix = '' if not ref_dir_path else ref_dir_path + '/'
+        prefix = '' if not ref_dir_path else f'{ref_dir_path}/'
         return prefix, ref, path
     except errors.InvalidReferenceError:
         raise invalid_reference_error
